@@ -1,0 +1,214 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id                    String              @id @default(cuid())
+  name                  String?
+  username              String              @unique
+  email                 String?             @unique
+  emailVerified        DateTime?
+  image                String?
+  password             String?
+  accounts             Account[]
+  sessions             Session[]
+  plans                Plan[]
+  calendars            Calendar[]
+  professionalCard     ProfessionalCard?
+  professionalCardManagers ProfessionalCardManager[]
+  calendarManagers     CalendarManager[]
+  planParticipations   PlanParticipant[]
+  notifications        Notification[]
+  sentRequests         ConnectionRequest[]  @relation("SentRequests")
+  receivedRequests     ConnectionRequest[]  @relation("ReceivedRequests")
+  sentConnections      Connection[]         @relation("UserConnections")
+  receivedConnections  Connection[]         @relation("ConnectedToUser")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Calendar {
+  id                String              @id @default(cuid())
+  name             String
+  description      String?
+  isPublic         Boolean             @default(false)
+  userId           String
+  professionalCardId String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  user             User                @relation(fields: [userId], references: [id])
+  professionalCard ProfessionalCard?   @relation(fields: [professionalCardId], references: [id])
+  plans            Plan[]
+  managers         CalendarManager[]
+}
+
+model CalendarManager {
+  id         String   @id @default(cuid())
+  calendarId String
+  userId     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  calendar   Calendar @relation(fields: [calendarId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([calendarId, userId])
+}
+
+model Plan {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  location    String?
+  onlineLink  String?
+  maxParticipants Int?
+  price       Float?
+  tags        Tag[]    @relation("PlanTags")
+  isPublic    Boolean   @default(false)
+  userId      String
+  calendarId  String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id])
+  calendar    Calendar  @relation(fields: [calendarId], references: [id])
+  participants PlanParticipant[]
+}
+
+model Tag {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  plans       Plan[]    @relation("PlanTags")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ProfessionalCard {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  userId      String    @unique
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id])
+  calendars   Calendar[]
+  managers    ProfessionalCardManager[]
+}
+
+model ProfessionalCardManager {
+  id                String          @id @default(cuid())
+  professionalCardId String
+  userId           String
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  professionalCard ProfessionalCard @relation(fields: [professionalCardId], references: [id])
+  user             User            @relation(fields: [userId], references: [id])
+
+  @@unique([professionalCardId, userId])
+}
+
+model Connection {
+  id              String   @id @default(cuid())
+  userId          String
+  connectedUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation("UserConnections", fields: [userId], references: [id])
+  connectedUser   User     @relation("ConnectedToUser", fields: [connectedUserId], references: [id])
+
+  @@unique([userId, connectedUserId])
+}
+
+model PlanParticipant {
+  id        String   @id @default(cuid())
+  planId    String
+  userId    String
+  plan      Plan     @relation(fields: [planId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([planId, userId])
+}
+
+enum NotificationType {
+  CONNECTION_REQUEST
+  PLAN_INVITATION
+  CALENDAR_SHARE
+  MANAGER_INVITATION
+}
+
+model Notification {
+  id        String          @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean         @default(false)
+  data      Json?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  user      User            @relation(fields: [userId], references: [id])
+}
+
+model ConnectionRequest {
+  id        String        @id @default(cuid())
+  fromId    String
+  toId      String
+  status    RequestStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  from      User          @relation("SentRequests", fields: [fromId], references: [id])
+  to        User          @relation("ReceivedRequests", fields: [toId], references: [id])
+}
+
+enum RequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
