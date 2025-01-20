@@ -14,7 +14,7 @@ CheckDay, kullanıcıların sağlık, kişisel planlama ve sosyal bağlantılar�
 
 1. Repository'yi klonlayın:
 ```bash
-git clone https://github.com/yourusername/checkday.git
+git clone https://github.com/yourusername/checkday995.git
 cd checkday
 ```
 
